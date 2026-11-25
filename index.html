@@ -10236,6 +10236,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
 const SAMPLE = /*DATA*/[];
 const SAMPLE_LABEL = "ParkingAdmin_Data_AI.xlsx, 10/12/2026 (sample)";
 const ATTENDING = {A:1, TOC:1, V:1, AW:1};   // accepted into the rally: A = Accepted, TOC = Tiffin Owner Council, V = Volunteer, AW = Accepted from last rally's Waitlist (V6 112426)
+// V7 (112526): warns when a site number is already held by another owner with no Departure Date
 const STATUS_TEXT = {W:"Waitlisted", C:"Cancelled", Z:"Zero Pay (not paid)"};   // not accepted: shown as a warning at the gate
 
 const $ = id => document.getElementById(id);
@@ -10250,7 +10251,7 @@ function jget(k,d){ try{ const v = sget(k); return v ? JSON.parse(v) : d; }catch
 // ---------- owner list ----------
 let OWNERS = [], BYCLUB = {}, LABEL = "";
 function rowToOwner(r){
-  return {club:r[0], status:(r[1]||"").toUpperCase(), m1:r[2], l1:r[3], m2:r[4], l2:r[5], paid:r[6]||"", ada:r[7]||"", special:r[8]||"", preSite:r[9]||"", team:r[10]||"", baseDate:r[11]||"", baseTime:r[12]||"", baseSite:r[13]||"", first:r[14]||""};
+  return {club:r[0], status:(r[1]||"").toUpperCase(), m1:r[2], l1:r[3], m2:r[4], l2:r[5], paid:r[6]||"", ada:r[7]||"", special:r[8]||"", preSite:r[9]||"", team:r[10]||"", baseDate:r[11]||"", baseTime:r[12]||"", baseSite:r[13]||"", first:r[14]||"", dep:r[15]||""};
 }
 function setList(rows,label){
   OWNERS = rows.map(rowToOwner).sort((a,b)=> (a.l1+a.m1).localeCompare(b.l1+b.m1));
@@ -10311,6 +10312,30 @@ function pill(o){
   return '<span class="pill">Not arrived</span>';
 }
 
+// ---------- V7 (112526): site already used? ----------
+// Same rule as the Merge's duplicate-site check: a site is taken only by an owner
+// with NO Departure Date. Owners who have left (Departure Date filled in) are ignored.
+function siteKey(v){
+  v = String(v==null?"":v).trim().toUpperCase().replace(/\s+/g,"");
+  if(/^\d+$/.test(v)) return String(parseInt(v,10));          // 012 = 12
+  return v.replace(/^([A-Z]*)0+(\d)/,"$1$2");                  // A012 = A12
+}
+function siteHolder(site, club){
+  const k = siteKey(site); if(!k) return null;
+  return OWNERS.find(o=> o.club!==club && !o.dep && siteKey(eff(o).site)===k) || null;
+}
+function guardSite(v, save){
+  const h = siteHolder(v, current);
+  if(!h){ save(); return; }
+  let w = $("siteWarn"); if(w) w.remove();
+  w = document.createElement("div"); w.id = "siteWarn"; w.className = "msg bad";
+  w.innerHTML = '<b>Site '+esc(v)+' is already assigned to '+esc(names(h))+' (Club # '+esc(h.club)+').</b><br>Use another site, or save anyway if that owner has left the rally.'+
+    '<div class="row" style="margin-top:10px"><button type="button" class="ghost" id="swOther">Use another site</button><button type="button" id="swSave">Save anyway</button></div>';
+  $("result").appendChild(w); w.scrollIntoView({block:"nearest"});
+  $("swOther").onclick = ()=>{ w.remove(); const f = $("moveNum") && !$("moveForm").hidden ? $("moveNum") : $("siteNum"); if(f){ f.value=""; f.focus(); } };
+  $("swSave").onclick = ()=>{ w.remove(); save(); };
+}
+
 // ---------- views ----------
 let current = null;
 function showResults(){
@@ -10353,8 +10378,8 @@ function showRecord(){
   h += '<div class="row">'+tools+'</div>';
   box.innerHTML = h; box.hidden = false;
   const st = $("stamp"); if(st) st.onclick = ()=>{ st.disabled = true; setChk(current,{arrivedAt:new Date().toISOString(), tablet:$("tabletName").value.trim()}); };
-  const sf = $("siteForm"); if(sf) sf.onsubmit = ev=>{ ev.preventDefault(); const v=$("siteNum").value.trim(); if(v) setChk(current,{site:v}); };
-  const up = $("usePre"); if(up) up.onclick = ()=> setChk(current,{site:o.preSite});
+  const sf = $("siteForm"); if(sf) sf.onsubmit = ev=>{ ev.preventDefault(); const v=$("siteNum").value.trim(); if(v) guardSite(v, ()=>setChk(current,{site:v})); };
+  const up = $("usePre"); if(up) up.onclick = ()=> guardSite(o.preSite, ()=>setChk(current,{site:o.preSite}));
   $("back").onclick = ()=>{ const nm = names(BYCLUB[current]), fin = !canBack; current = null; if(fin){ $("q").value = ""; doneMsg(nm); } refresh(); };
   const mb = $("moveBtn"); if(mb){
     mb.onclick = ()=>{ mb.hidden = true; $("moveForm").hidden = false; $("moveNum").focus(); };
@@ -10362,7 +10387,7 @@ function showRecord(){
     $("moveForm").onsubmit = ev=>{ ev.preventDefault(); const v = $("moveNum").value.trim(); if(!v) return;
       const old = eff(o).site; if(v === old){ $("moveForm").hidden = true; mb.hidden = false; return; }
       const lc = CHK[o.club]||{};
-      setChk(current,{site:v, prevSite:old, movedAt:new Date().toISOString(), moves:(lc.moves||0)+1}); };
+      guardSite(v, ()=>setChk(current,{site:v, prevSite:old, movedAt:new Date().toISOString(), moves:(lc.moves||0)+1})); };
   }
   const ua = $("undoArr"); if(ua) ua.onclick = ()=> setChk(current,{arrivedAt:null});
   const us = $("undoSite"); if(us) us.onclick = ()=> setChk(current,{site:null});
@@ -10437,7 +10462,8 @@ function mapHeaders(hdr){
     team: find(h=>h.startsWith("parking")),
     arrDate: find(h=>h.includes("date")&&h.includes("arrived")),
     arrTime: find(h=>h.startsWith("arrival time")),
-    site: find(h=>h==="site#"||h==="site #")
+    site: find(h=>h==="site#"||h==="site #"),
+    dep: find(h=>h.includes("depart"))   // V7: Departure Date (owner has left the rally)
   };
 }
 function importCSV(text, name, modified){
@@ -10452,7 +10478,7 @@ function importCSV(text, name, modified){
     const club = g(r,"club").replace(/\D/g,"");
     if(!club || !g(r,"m1l")){ skipped++; continue; }
     if(seen[club]){ dup++; continue; } seen[club]=1;
-    rows.push([club, g(r,"status"), g(r,"m1f"), g(r,"m1l"), g(r,"m2f"), g(r,"m2l"), g(r,"paid"), g(r,"ada"), g(r,"special"), g(r,"pre"), g(r,"team"), g(r,"arrDate"), g(r,"arrTime"), g(r,"site"), g(r,"first")]);
+    rows.push([club, g(r,"status"), g(r,"m1f"), g(r,"m1l"), g(r,"m2f"), g(r,"m2l"), g(r,"paid"), g(r,"ada"), g(r,"special"), g(r,"pre"), g(r,"team"), g(r,"arrDate"), g(r,"arrTime"), g(r,"site"), g(r,"first"), g(r,"dep")]);
   }
   if(!rows.length) throw new Error("No usable owner rows were found.");
   const label = name + (modified ? ", "+new Date(modified).toLocaleString(undefined,{month:"numeric",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}) : "");
