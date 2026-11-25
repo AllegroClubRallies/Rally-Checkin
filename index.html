@@ -10235,7 +10235,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
 // Built-in sample list: [club, status, M1 first, M1 last, M2 first, M2 last, paid arrival, ADA, special instructions, pre-assigned site, parking team]
 const SAMPLE = /*DATA*/[];
 const SAMPLE_LABEL = "ParkingAdmin_Data_AI.xlsx, 10/12/2026 (sample)";
-const ATTENDING = {A:1, TOC:1, V:1};   // accepted into the rally: A = Accepted, TOC = Tiffin Owner Council, V = Volunteer
+const ATTENDING = {A:1, TOC:1, V:1, AW:1};   // accepted into the rally: A = Accepted, TOC = Tiffin Owner Council, V = Volunteer, AW = Accepted from last rally's Waitlist (V6 112426)
 const STATUS_TEXT = {W:"Waitlisted", C:"Cancelled", Z:"Zero Pay (not paid)"};   // not accepted: shown as a warning at the gate
 
 const $ = id => document.getElementById(id);
