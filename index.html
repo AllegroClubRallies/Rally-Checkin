@@ -112,10 +112,10 @@ details.card[open] summary::after{content:"-"}
 
   <details class="card" id="admin">
     <summary>Owner list and export</summary>
-    <p class="sm">Owner list file: save your cut-down Registration Data as CSV in Excel (File, Save As, CSV), then pick it here. Only the columns this app needs are kept. Phone numbers, shirt sizes and other columns are ignored and not stored.</p>
+    <p class="sm">Owner list file: the Arrival List CSV made by the Export Arrival List button (copy the .csv itself onto this tablet; an .xlsx will not load), then pick it here. Only the columns this app needs are kept. Phone numbers, shirt sizes and other columns are ignored and not stored.</p>
     <div class="row">
-      <label class="ghost" style="display:flex;align-items:center;justify-content:center;border:2px solid var(--line);border-radius:8px;min-height:44px;padding:10px 16px;font-weight:600;font-size:.95rem;cursor:pointer;text-align:center">
-        Load owner list (CSV)<input id="file" type="file" accept=".csv,text/csv" style="position:absolute;opacity:0;width:1px;height:1px">
+      <label class="ghost" style="position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;border:2px solid var(--line);border-radius:8px;min-height:44px;padding:10px 16px;font-weight:600;font-size:.95rem;cursor:pointer;text-align:center">
+        Load owner list (CSV)<input id="file" type="file" accept=".csv,text/csv,text/comma-separated-values,text/plain" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:100px">
       </label>
       <button class="ghost" id="sampleBtn" type="button">Use built-in sample list</button>
     </div>
@@ -10237,6 +10237,8 @@ const SAMPLE = /*DATA*/[];
 const SAMPLE_LABEL = "ParkingAdmin_Data_AI.xlsx, 10/12/2026 (sample)";
 const ATTENDING = {A:1, TOC:1, V:1, AW:1};   // accepted into the rally: A = Accepted, TOC = Tiffin Owner Council, V = Volunteer, AW = Accepted from last rally's Waitlist (V6 112426)
 // V7 (112526): warns when a site number is already held by another owner with no Departure Date
+// V8 (112626): Load owner list button - the file picker now covers the whole button so iPad/iPhone Safari opens it; help text updated
+// V9 (112626): scanner - if the browser's built-in QR detector errors (seen after Android/Chrome updates), it switches to the app's own reader instead of silently never scanning
 const STATUS_TEXT = {W:"Waitlisted", C:"Cancelled", Z:"Zero Pay (not paid)"};   // not accepted: shown as a warning at the gate
 
 const $ = id => document.getElementById(id);
@@ -10565,7 +10567,7 @@ async function startScan(){
     if(!scanning||busy||v.readyState<2||!v.videoWidth) return; busy=true;
     try{
       let text="";
-      if(bd){ const r=await bd.detect(v); if(r&&r.length) text=r[0].rawValue; }
+      if(bd){ try{ const r=await bd.detect(v); if(r&&r.length) text=r[0].rawValue; }catch(e){ bd=null; } }   // V9: a failing built-in detector falls back to jsQR instead of stopping every scan
       if(!text){
         const w=Math.min(v.videoWidth,720), h=Math.round(v.videoHeight*w/v.videoWidth);
         scanCanvas.width=w; scanCanvas.height=h; scanCtx.drawImage(v,0,0,w,h);
